@@ -1100,6 +1100,10 @@ def adopt_model(
             model.layers[0].mapping,
             lambda: multi_request_append.install(model, min_seqs),
         )
+    if swa_block is not None and os.environ.get("MUSESPARK_OPEN_SWA_BLOCK_MULTI", "0") == "1":
+        # After multi_request_prep_append's install (it sets each layer's fewest folded sequences): steps of
+        # 2..CL8_MAX_REQUESTS sequences run the sliding-window layers' swa_block (the one-cluster block).
+        swa_attention_block.install_multi(model)
     if os.environ.get("MUSESPARK_OPEN_FMK_CONTEXT_FMHA", "0") == "1":
         # Opt-in (not a lever): after every other attention install, it replaces only the context
         # phase of the full-attention layers' trtllm-gen FMHA library on mixed steps. Its refusal
