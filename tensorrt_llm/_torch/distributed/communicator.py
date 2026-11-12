@@ -492,8 +492,8 @@ def _bcast_note_unchecked(kind: str) -> None:
         _bcast_verify_prefix()
         stats = _bcast_verify_stats
         stats["unchecked"] += 1
-        stats["unchecked_kinds"][kind] = stats["unchecked_kinds"].get(
-            kind, 0) + 1
+        stats["unchecked_kinds"][kind] = stats["unchecked_kinds"].get(kind,
+                                                                      0) + 1
         _bcast_verify_tick()
 
 
@@ -574,8 +574,9 @@ def _bcast_verify_report(comm, text: str, dump: bool) -> None:
     if dump:
         ct = getattr(comm, "_collective_trace", None)
         recent = ct.dump() if ct is not None else ["comm not traced"]
-        text += (f"; last collectives on comm {comm.py2f()}, oldest first:\n  "
-                 + "\n  ".join(recent))
+        text += (
+            f"; last collectives on comm {comm.py2f()}, oldest first:\n  " +
+            "\n  ".join(recent))
     logger.error(f"{_bcast_verify_prefix()}: {text}")
 
 
@@ -723,14 +724,13 @@ def _finish_verified_broadcast(comm, rank, root, obj, header, local_seq,
                     f"{local_seq[0]}, {total_size} bytes, attempt "
                     f"{attempt + 1}; {_bcast_verify_counts()}")
             if problems:
-                _bcast_verify_report(
-                    comm, f"rank {rank} on comm {comm.py2f()}: "
-                    f"{'; '.join(problems)}",
-                    dump=False)
+                _bcast_verify_report(comm,
+                                     f"rank {rank} on comm {comm.py2f()}: "
+                                     f"{'; '.join(problems)}",
+                                     dump=False)
 
         # MAX over ranks of [flagged, CRC mismatch, retry enabled]
-        vote = np.array([bool(problems), crc_bad, BCAST_RETRY],
-                        dtype=np.int64)
+        vote = np.array([bool(problems), crc_bad, BCAST_RETRY], dtype=np.int64)
         comm.Allreduce(MPI.IN_PLACE, [vote, MPI.INT64_T], op=MPI.MAX)
         if vote[1]:  # locate the corruption with the root's block CRCs
             root_blocks = np.empty(-(-total_size // _BCAST_VERIFY_BLOCK),
@@ -757,10 +757,10 @@ def _finish_verified_broadcast(comm, rank, root, obj, header, local_seq,
             break
         last = attempt == _BCAST_RETRY_MAX
         stats["retries"] += not last
-        this_rank = ("sender" if rank == root else
-                     "mismatch" if crc_bad else "verified")
-        action = (f"giving up after {_BCAST_RETRY_MAX} retries" if last else
-                  f"retry {attempt + 1} of {_BCAST_RETRY_MAX}")
+        this_rank = ("sender"
+                     if rank == root else "mismatch" if crc_bad else "verified")
+        action = (f"giving up after {_BCAST_RETRY_MAX} retries"
+                  if last else f"retry {attempt + 1} of {_BCAST_RETRY_MAX}")
         (logger.error if last else logger.warning)(
             f"{_bcast_verify_prefix()}: payload CRC32 mismatch on comm "
             f"{comm.py2f()}, broadcast seq {local_seq[0]}, {total_size} "
@@ -780,10 +780,10 @@ def _finish_verified_broadcast(comm, rank, root, obj, header, local_seq,
     bucket = 1 << max(total_size - 1, 0).bit_length()
     window[bucket] = window.get(bucket, 0) + 1
     if stats["total"] % _BCAST_VERIFY_LOG_EVERY == 0:
-        histogram = "; ".join(
-            f"comm {handle}: " + ", ".join(f"<={k}: {v}"
-                                          for k, v in sorted(w.items()))
-            for handle, w in sorted(stats["window"].items()))
+        histogram = "; ".join(f"comm {handle}: " +
+                              ", ".join(f"<={k}: {v}"
+                                        for k, v in sorted(w.items()))
+                              for handle, w in sorted(stats["window"].items()))
         stats["window"] = {}
         logger.warning(
             f"{_bcast_verify_prefix()}: {stats['total']} broadcasts, "
@@ -1161,8 +1161,8 @@ def _verified_exchange(comm: Any,
         total_size = int(lengths.sum())
         recvbuf = np.empty(total_size, dtype=np.uint8) if receives else None
         _chunked_transfer_loop(comm, rank, size, lengths, displs, sendbuf,
-                               -(-int(lengths.max()) // chunk_size),
-                               chunk_size, recvbuf, _exchange)
+                               -(-int(lengths.max()) // chunk_size), chunk_size,
+                               recvbuf, _exchange)
 
         results, error, problems, bad = [], None, [], []
         if receives:
@@ -1171,8 +1171,8 @@ def _verified_exchange(comm: Any,
                     results.append(None)
                     continue
                 result, err, findings, mismatch = _verified_loads(
-                    recvbuf[displs[i]:displs[i] + lengths[i]],
-                    int(metas[i, 1]), f"rank {i}")
+                    recvbuf[displs[i]:displs[i] + lengths[i]], int(metas[i, 1]),
+                    f"rank {i}")
                 results.append(result)
                 error = error or err
                 if findings:
@@ -1201,10 +1201,10 @@ def _verified_exchange(comm: Any,
             break
         last = attempt == _BCAST_RETRY_MAX
         stats[f"{kind}_retries"] += not last
-        this_rank = (f"mismatch from ranks {bad}" if bad else
-                     "verified" if receives else "sender")
-        action = (f"giving up after {_BCAST_RETRY_MAX} retries" if last else
-                  f"retry {attempt + 1} of {_BCAST_RETRY_MAX}")
+        this_rank = (f"mismatch from ranks {bad}"
+                     if bad else "verified" if receives else "sender")
+        action = (f"giving up after {_BCAST_RETRY_MAX} retries"
+                  if last else f"retry {attempt + 1} of {_BCAST_RETRY_MAX}")
         (logger.error if last else logger.warning)(
             f"{_bcast_verify_prefix()}: {kind} CRC32 mismatch on comm "
             f"{comm.py2f()}, {total_size} bytes, attempt {attempt + 1}: this "

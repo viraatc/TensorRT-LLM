@@ -488,8 +488,8 @@ class CollectiveTrace:
         with self.lock:
             seq = self.seq
             self.seq += counted
-            other = next(
-                (v for t, v in self.inflight.items() if t != tid), None)
+            other = next((v for t, v in self.inflight.items() if t != tid),
+                         None)
             self.inflight[tid] = (seq, op, site, thread_name)
             self.recent.append(
                 (seq, op, nbytes, site, thread_name, time.monotonic()))
