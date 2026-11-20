@@ -123,10 +123,8 @@ class DSparkSpecMetadata(SpecMetadata):
         # Keep the full slot capacity across CUDA graph copies, whose
         # max_num_requests is narrowed to the captured graph bucket.
         self.num_seq_slots = self.num_seq_slots or self.max_num_requests
-        # The engine's generation batch before any graph-copy narrowing. A
-        # generation step never carries more requests than this, even when the
-        # seq-slot pool is larger (disaggregated attention DP overlap).
-        self.max_generation_batch = self.max_num_requests
+        # Same for the engine batch, which sizes the worker's progress slots.
+        self.max_generation_batch = self.max_generation_batch or self.max_num_requests
 
         self.batch_indices_cuda = torch.empty(
             [self.max_num_requests],
@@ -340,15 +338,11 @@ class DSv4DSparkWorker(SpecWorkerBase):
         self._publish_position_ceiling(draft_model, attn_metadata, block_size)
 
         if self._ctx_len is None:
-            # Allocated once, so span the full seq-slot pool rather than
+            # Allocated once, so span the engine batch rather than
             # max_num_requests, which create_cuda_graph_metadata narrows to the
             # captured graph bucket (see the DFlash counterpart).
-            max_batch = spec_metadata.num_seq_slots
-            # Tune for the batch a generation step can carry, not the slot pool:
-            # a pool of 2 * max_batch_size would tune buckets no step reaches.
-            draft_model.configure_generation_autotuner(
-                getattr(spec_metadata, "max_generation_batch", spec_metadata.max_num_requests)
-            )
+            max_batch = spec_metadata.max_generation_batch
+            draft_model.configure_generation_autotuner(max_batch)
             self._num_stages = draft_model.num_stages
             self._win = int(draft_model._attn_params["window_size"])
             self._head_dim = int(draft_model._attn_params["head_dim"])
@@ -382,8 +376,8 @@ class DSv4DSparkWorker(SpecWorkerBase):
             if not self._free_slots:
                 raise RuntimeError(
                     "DSpark has no free progress slots for request "
-                    f"{req_id}: all {len(self._req_to_slot)} slots of the executor's "
-                    "seq-slot pool are in use; increase max_batch_size"
+                    f"{req_id}: all {len(self._req_to_slot)} worker progress slots "
+                    "are in use; increase max_batch_size"
                 )
             slot = self._free_slots.popleft()
             self._req_to_slot[req_id] = slot
